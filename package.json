@@ -21,7 +21,7 @@
     "typescript": "^5.5.3"
   },
   "scripts": {
-    "build": "node ./build.js",
+    "build": "tsc",
     "auto": "node ./dist/autoSniper.js",
     "single": "node ./dist/singleSniper.js",
     "iBox": "node ./dist/sniperIBox.js"

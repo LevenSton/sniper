@@ -1,7 +1,7 @@
 import { Connection, GetVersionedTransactionConfig, Keypair, PublicKey } from "@solana/web3.js";
 import bs58 from 'bs58';
 import dotenv from "dotenv";
-import buyToken from "../utils/buyToken";
+import buyToken from "./utils/buyToken";
 dotenv.config();
 
 const CREATE_LOG_STR = "Program log: Instruction: Create";

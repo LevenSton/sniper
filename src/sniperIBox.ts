@@ -9,12 +9,11 @@ import BN from 'bn.js'
 import bs58 from 'bs58';
 import dotenv from "dotenv";
 import { NATIVE_MINT } from '@solana/spl-token';
-import { isValidCpmm } from '../utils/config';
+import { isValidCpmm } from './utils/config';
 dotenv.config();
 
 class RaydiumLiquidityMonitor {
   private connection: Connection;
-  private wsConnection: WebSocket | null = null;
   private keypair: Keypair | null = null;
   private raydium: Raydium | null = null;
 
@@ -85,13 +84,13 @@ class RaydiumLiquidityMonitor {
                     }
 
                     // 买入代币
-                    try {
-                      console.log('开始买入代币...');
-                      const signature = await this.buyToken(poolId, 0.5, 50);
-                      console.log('买入成功，交易签名:', signature);
-                    } catch (error) {
-                        console.error('买入失败:', error);
-                    }
+                    // try {
+                    //   console.log('开始买入代币...');
+                    //   const signature = await this.buyToken(poolId, 0.5, 50);
+                    //   console.log('买入成功，交易签名:', signature);
+                    // } catch (error) {
+                    //     console.error('买入失败:', error);
+                    // }
                 } catch (error) {
                     console.error('获取Base Token信息失败:', error)
                 }
@@ -146,7 +145,7 @@ class RaydiumLiquidityMonitor {
       poolKeys,
       inputAmount,
       swapResult,
-      slippage: 0.5, // range: 1 ~ 0.0001, means 100% ~ 0.01%
+      slippage: 0.1, // range: 1 ~ 0.0001, means 100% ~ 0.01%
       baseIn,
       // optional: set up priority fee here
       // computeBudgetConfig: {
@@ -170,16 +169,9 @@ class RaydiumLiquidityMonitor {
   }
 
   private isIBoxToken(tokenAMint: PublicKey, tokenBMint: PublicKey): boolean {
-    const mintAddress = tokenAMint.toBase58();
-    return mintAddress.toLowerCase().endsWith('ibox') && NATIVE_MINT.equals(tokenBMint);
-  }
-
-  async stop() {
-    // 清理资源
-    if (this.wsConnection) {
-      this.wsConnection.close();
-      this.wsConnection = null;
-    }
+    // const mintAddress = tokenAMint.toBase58();
+    return NATIVE_MINT.equals(tokenBMint);
+    //return mintAddress.toLowerCase().endsWith('ibox') && NATIVE_MINT.equals(tokenBMint);
   }
 }
 
@@ -190,7 +182,6 @@ async function main() {
   // 添加优雅退出处理
   process.on('SIGINT', async () => {
     console.log('Stopping monitor...');
-    await monitor.stop();
     process.exit(0);
   });
 }

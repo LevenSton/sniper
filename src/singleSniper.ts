@@ -1,8 +1,8 @@
 import * as web3 from "@solana/web3.js";
 import bs58 from 'bs58';
 import dotenv from "dotenv";
-import buyToken from "../utils/buyToken";
-import promptUserBuy from "../utils/promptUserBuy";
+import buyToken from "./utils/buyToken";
+import promptUserBuy from "./utils/promptUserBuy";
 import { Keypair } from "@solana/web3.js";
 dotenv.config();
 
@@ -37,7 +37,6 @@ async function main() {
     const sig = await buyToken(tokenAddress, connection, keypair, solAmount, slippage, priorityFee);
     console.log("Signature:", sig);
   } catch (error) {
-    console.error(error.message);
     console.error(error);
   }
   console.log("Program finished");
