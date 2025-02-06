@@ -1,22 +1,20 @@
-import { Connection, PublicKey } from '@solana/web3.js';
+import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import {
     CREATE_CPMM_POOL_PROGRAM,
-    CpmmPoolInfoLayout
 } from '@raydium-io/raydium-sdk-v2'
 import bs58 from 'bs58';
-import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
-import { EventEmitter } from 'events';
 import dotenv from "dotenv";
 dotenv.config();
 
 const WSOL_MINT = new PublicKey('So11111111111111111111111111111111111111112')
 
-class RaydiumLiquidityMonitor extends EventEmitter {
+class RaydiumLiquidityMonitor {
   private connection: Connection;
   private wsConnection: WebSocket | null = null;
+  private keypair: Keypair | null = null;
 
   constructor() {
-    super();
+    this.keypair = Keypair.fromSecretKey(bs58.decode(process.env.PRIVATE_KEY!));
     this.connection = new Connection(process.env.HTTPS_ENDPOINT!, {
       wsEndpoint: process.env.WSS_ENDPOINT!,
       commitment: 'confirmed',
