@@ -5,6 +5,7 @@
   "dependencies": {
     "@coral-xyz/anchor": "^0.30.1",
     "@coral-xyz/borsh": "^0.30.1",
+    "@raydium-io/raydium-sdk-v2": "^0.1.111-alpha",
     "@solana/spl-token": "^0.4.12",
     "@solana/web3.js": "^1.98.0",
     "bn.js": "^5.2.1",
@@ -21,7 +22,8 @@
   "scripts": {
     "build": "node ./build.js",
     "auto": "node ./dist/autoSniper.js",
-    "single": "node ./dist/singleSniper.js"
+    "single": "node ./dist/singleSniper.js",
+    "iBox": "node ./dist/sniperIBox.js"
   },
   "author": "",
   "license": "ISC",

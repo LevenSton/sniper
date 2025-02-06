@@ -18,7 +18,7 @@ async function main() {
   const BUY_AMOUNT = process.env.BUY_AMOUNT || 0.1;
   const PRIORITY_FEE = process.env.PRIORITY_FEE || 0.003;
 
-  const subId = await connection.onLogs(
+  const subId = connection.onLogs(
     PROGRAM_ID,
     async (transaction) => {
       if (transaction.err) return;
