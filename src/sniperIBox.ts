@@ -3,7 +3,6 @@ import {
   API_URLS,
   CREATE_CPMM_POOL_PROGRAM,
   parseTokenAccountResp,
-  Raydium
 } from '@raydium-io/raydium-sdk-v2'
 import axios from 'axios';
 import bs58 from 'bs58';
@@ -39,8 +38,6 @@ interface SwapCompute {
 class RaydiumLiquidityMonitor {
   private connection: Connection;
   private keypair: Keypair | null = null;
-  private raydium: Raydium | null = null;
-  private isBuying: boolean = false;
 
   constructor() {
     const privateKeyString = process.env.PRIVATE_KEY;
@@ -61,24 +58,8 @@ class RaydiumLiquidityMonitor {
     });
   }
 
-  private async initRaydium() {
-    if (!this.raydium) {
-      this.raydium = await Raydium.load({
-        owner: this.keypair!,
-        connection: this.connection,
-        cluster: 'mainnet',
-        disableFeatureCheck: true,
-        disableLoadToken: true,
-        blockhashCommitment: 'confirmed',
-      });
-    }
-    return this.raydium;
-  }
-
   async startMonitoring() {
     try {
-      await this.initRaydium();
-
       this.connection.onLogs(
         CREATE_CPMM_POOL_PROGRAM, 
         async (logs, context) => {
@@ -102,19 +83,17 @@ class RaydiumLiquidityMonitor {
                     if(len < 6) {
                         return
                     }
-                    const poolId = new PublicKey(tx?.transaction.message.staticAccountKeys[2].toBase58()!);
-                    console.log("Found pool:", poolId.toString(), new Date().toISOString());
                     const tokenA = new PublicKey(tx?.transaction.message.staticAccountKeys[len - 1].toBase58()!);
-                    console.log("Found base token:", tokenA.toString(), new Date().toISOString());
+                    console.log("Found base token:", tokenA.toBase58(), new Date().toISOString());
                     const tokenB = new PublicKey(tx?.transaction.message.staticAccountKeys[len - 5].toBase58()!);
-                    console.log("Found quote token:", tokenB.toString(), new Date().toISOString());
-                    if(!this.isIBoxToken(tokenA, tokenB) || this.isBuying) {
+                    console.log("Found quote token:", tokenB.toBase58(), new Date().toISOString());
+                    if(!this.isIBoxToken(tokenA, tokenB)) {
                         return
                     }
 
                     // 买入代币
                     try {
-                      console.log('开始买入代币...');
+                      console.log('开始买入代币...', tokenA.toBase58());
                       const txId = await this.swap(tokenA);
                       console.log('买入成功，交易签名:', txId);
                     } catch (error) {
@@ -138,10 +117,8 @@ class RaydiumLiquidityMonitor {
   }
 
   private async swap(tokenA: PublicKey) : Promise<string | null> {
-    if(!this.raydium) throw new Error('Raydium not initialized')
     if(!this.connection) throw new Error('Connection not initialized')
     if(!this.keypair) throw new Error('Keypair not initialized')
-    this.isBuying = true;
 
     const inputMint = NATIVE_MINT.toBase58()
     const outputMint = tokenA.toBase58()
@@ -245,7 +222,6 @@ class RaydiumLiquidityMonitor {
       }
     }
     return txId
-    //process.exit()
   }
 
   private fetchTokenAccountData = async () => {
@@ -263,71 +239,9 @@ class RaydiumLiquidityMonitor {
     return tokenAccountData
   }
 
-  // private async buyToken(poolId: PublicKey, amountIn: number, slippage: number) {
-  //   if(!this.raydium) throw new Error('Raydium not initialized')
-  //   if(!this.connection) throw new Error('Connection not initialized')
-  //   if(!this.keypair) throw new Error('Keypair not initialized')
-
-  //   const inputAmount = new BN(1000000) //1000000000
-  //   const inputMint = NATIVE_MINT.toBase58()
-  //   let poolInfo: ApiV3PoolInfoStandardItemCpmm
-  //   let poolKeys: CpmmKeys | undefined
-  //   let rpcData: CpmmRpcData | undefined
-  //   const data = await this.raydium.api.fetchPoolById({ ids: poolId.toBase58() })
-  //   if(!data) throw new Error('Empty. Failed to fetch pool')
-  //   poolInfo = data[0] as ApiV3PoolInfoStandardItemCpmm
-  //   if (!isValidCpmm(poolInfo.programId)) throw new Error('target pool is not CPMM pool')
-  //   rpcData = await this.raydium.cpmm.getRpcPoolInfo(poolInfo.id, true)
-
-  //   if (inputMint !== poolInfo.mintA.address && inputMint !== poolInfo.mintB.address)
-  //     throw new Error('input mint does not match pool')
-    
-  //   const baseIn = inputMint === poolInfo.mintA.address
-  //   // swap pool mintA for mintB
-  //   const swapResult = CurveCalculator.swap(
-  //     inputAmount,
-  //     baseIn ? rpcData.baseReserve : rpcData.quoteReserve,
-  //     baseIn ? rpcData.quoteReserve : rpcData.baseReserve,
-  //     rpcData.configInfo!.tradeFeeRate
-  //   )
-
-  //   /**
-  //    * swapResult.sourceAmountSwapped -> input amount
-  //    * swapResult.destinationAmountSwapped -> output amount
-  //    * swapResult.tradeFee -> this swap fee, charge input mint
-  //    */
-  //   const { execute } = await this.raydium.cpmm.swap({
-  //     poolInfo,
-  //     poolKeys,
-  //     inputAmount,
-  //     swapResult,
-  //     slippage: 0.1, // range: 1 ~ 0.0001, means 100% ~ 0.01%
-  //     baseIn,
-  //     // optional: set up priority fee here
-  //     // computeBudgetConfig: {
-  //     //   units: 600000,
-  //     //   microLamports: 4659150,
-  //     // },
-
-  //     // optional: add transfer sol to tip account instruction. e.g sent tip to jito
-  //     // txTipConfig: {
-  //     //   address: new PublicKey('96gYZGLnJYVFmbjzopPSU6QiEV5fGqZNyN9nmNhvrZU5'),
-  //     //   amount: new BN(10000000), // 0.01 sol
-  //     // },
-  //   })
-
-  //   // don't want to wait confirm, set sendAndConfirm to false or don't pass any params to execute
-  //   const { txId } = await execute({ sendAndConfirm: true })
-  //   console.log(`swapped: ${poolInfo.mintA.symbol} to ${poolInfo.mintB.symbol}:`, {
-  //     txId: `https://explorer.solana.com/tx/${txId}`,
-  //   })
-  //   process.exit() // if you don't want to end up node execution, comment this line
-  // }
-
   private isIBoxToken(tokenAMint: PublicKey, tokenBMint: PublicKey): boolean {
-    // const mintAddress = tokenAMint.toBase58();
-    return NATIVE_MINT.equals(tokenBMint);
-    //return mintAddress.toLowerCase().endsWith('ibox') && NATIVE_MINT.equals(tokenBMint);
+    const mintAddress = tokenAMint.toBase58();
+    return mintAddress.toLowerCase().endsWith('ibox') && NATIVE_MINT.equals(tokenBMint);
   }
 }
 
