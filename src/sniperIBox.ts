@@ -1,4 +1,4 @@
-import { Connection, Keypair, PublicKey, sendAndConfirmTransaction, Transaction, VersionedTransaction } from '@solana/web3.js';
+import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, sendAndConfirmTransaction, Transaction, VersionedTransaction } from '@solana/web3.js';
 import {
   API_URLS,
   CREATE_CPMM_POOL_PROGRAM,
@@ -122,8 +122,8 @@ class RaydiumLiquidityMonitor {
 
     const inputMint = NATIVE_MINT.toBase58()
     const outputMint = tokenA.toBase58()
-    const amount = 10000
-    const slippage = 0.5 // in percent, for this example, 0.5 means 0.5%
+    const amount = BigInt(0.1 * LAMPORTS_PER_SOL);
+    const slippage = 50 // 50 % in percent, for this example, 0.5 means 0.5%
     const txVersion: string = 'V0' // or LEGACY
     const isV0Tx = txVersion === 'V0'
     console.log('start swap....')
@@ -146,25 +146,39 @@ class RaydiumLiquidityMonitor {
     }>(`${API_URLS.BASE_HOST}${API_URLS.PRIORITY_FEE}`)
     console.log('data:', data)
 
-    const { data: swapResponse } = await axios.get<SwapCompute>(
-      `${
-        API_URLS.SWAP_HOST
-      }/compute/swap-base-in?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amount}&slippageBps=${
-        slippage * 100
-      }&txVersion=${txVersion}`
-    )
-    console.log('swapResponse:', swapResponse)
-    if (!swapResponse.success && swapResponse.openTime) {
-      const openTime = parseInt(swapResponse.openTime) * 1000; // 转换为毫秒
-      const now = Date.now();
-      if (openTime > now) {
-        const delayMs = openTime - now;
-        console.log(`池子将在 ${new Date(openTime).toLocaleString()} 开放，等待 ${Math.floor(delayMs/1000)} 秒...`);
-        await new Promise(resolve => setTimeout(resolve, delayMs));
-        // 重新尝试交易
-        return await this.swap(tokenA);
+    const getSwapResponse = async (retryCount = 0, maxRetries = 3): Promise<SwapCompute> => {
+      const { data: swapResponse } = await axios.get<SwapCompute>(
+        `${
+          API_URLS.SWAP_HOST
+        }/compute/swap-base-in?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amount}&slippageBps=${
+          slippage * 100
+        }&txVersion=${txVersion}`
+      )
+      console.log('swapResponse:', swapResponse)
+
+      if (!swapResponse.success) {
+        if (swapResponse.msg === 'ROUTE_NOT_FOUND' && retryCount < maxRetries) {
+          console.log(`路由未找到，5秒后重试 (${retryCount + 1}/${maxRetries})...`)
+          await new Promise(resolve => setTimeout(resolve, 5000))
+          return getSwapResponse(retryCount + 1, maxRetries)
+        } else if (swapResponse.openTime) {
+          const openTime = parseInt(swapResponse.openTime) * 1000
+          const now = Date.now()
+          if (openTime > now) {
+            const delayMs = openTime - now
+            console.log(`池子 ${outputMint} 将在 ${new Date(openTime).toLocaleString()} 开放，等待 ${Math.floor(delayMs/1000)} 秒...`)
+            await new Promise(resolve => setTimeout(resolve, delayMs))
+            return getSwapResponse(0, maxRetries) // 重置重试次数
+          }
+        }else{
+          console.log('error swapResponse:', swapResponse)
+          throw new Error(`Swap computation failed: ${swapResponse.msg}`)
+        }
       }
+
+      return swapResponse
     }
+    const swapResponse = await getSwapResponse()
 
     const { data: swapTransactions } = await axios.post<{
       id: string
@@ -172,7 +186,7 @@ class RaydiumLiquidityMonitor {
       success: boolean
       data: { transaction: string }[]
     }>(`${API_URLS.SWAP_HOST}/transaction/swap-base-in`, {
-      computeUnitPriceMicroLamports: String(data.data.default.h),
+      computeUnitPriceMicroLamports: String(data.data.default.vh),
       swapResponse,
       txVersion,
       wallet: this.keypair!.publicKey.toBase58(),
