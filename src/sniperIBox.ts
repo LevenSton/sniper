@@ -134,13 +134,29 @@ class RaydiumLiquidityMonitor {
 
 ⚡️ <b>风险提示</b>: 请谨慎交易DYOR!
 `;
-                    await this.sendTelegramNotification(notificationMessage);
+                    // 异步发送通知，不等待结果
+                    this.sendTelegramNotification(notificationMessage).catch(err => 
+                      console.error('发送 Telegram 通知失败:', err)
+                    );
 
                     // 买入代币
                     try {
                       console.log('开始买入代币...', mintPublicKey.toBase58());
                       const txId = await this.swap(mintPublicKey);
-                      console.log('买入成功，交易签名:', txId);
+                      if (txId) {
+                        console.log('买入成功，交易签名:', txId);
+                        const notificationMessage = `
+💰 <b>买入成功</b>
+└ 时间: ${new Date().toLocaleString()}
+
+🔍 <b>信息</b>
+├ 查看买入交易: <a href="https://solscan.io/tx/${txId}">Solscan</a>
+`;
+                      // 异步发送通知，不等待结果
+                      this.sendTelegramNotification(notificationMessage).catch(err => 
+                        console.error('发送 Telegram 通知失败:', err)
+                      );
+                    }
                     } catch (error) {
                         console.error('买入失败:', error);
                     }
