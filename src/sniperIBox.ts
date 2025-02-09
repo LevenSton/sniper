@@ -99,25 +99,62 @@ class RaydiumLiquidityMonitor {
               })
               if (tx) {
                 try {
-                    const len = tx?.transaction.message.staticAccountKeys.length
-                    if(len < 6) {
-                        return
-                    }
-                    const tokenA = new PublicKey(tx?.transaction.message.staticAccountKeys[len - 1].toBase58()!);
-                    const tokenB = new PublicKey(tx?.transaction.message.staticAccountKeys[len - 5].toBase58()!);
-                    console.log('=========New Token===========');
-                    console.log("Found base token:", tokenA.toBase58(), new Date().toISOString());
-                    console.log("Found quote token:", tokenB.toBase58(), new Date().toISOString());
-                    if(!this.isIBoxToken(tokenA, tokenB)) {
-                        return
-                    }
+                  // 获取所有账户
+                  const accounts = tx.transaction.message.staticAccountKeys;
+                  // 解析交易中的指令数据
+                  const instructions = tx.transaction.message.compiledInstructions;
+                  // 查找创建流动性池的指令
+                  const createPoolInstruction = instructions.find(ix => {
+                      const program = accounts[ix.programIdIndex];
+                      return program.equals(new PublicKey(CREATE_CPMM_POOL_PROGRAM));
+                  });
 
-                    const mintPublicKey = tokenA.equals(NATIVE_MINT) ? tokenB : tokenA;
-                    console.log('发现IBOX token: ', mintPublicKey.toBase58())
+                  if (!createPoolInstruction) {
+                      console.log('未找到创建池子的指令');
+                      return;
+                  }
 
-                    // 发送 Telegram 通知
-                    const solAmount = Number(wsolAmount)/LAMPORTS_PER_SOL;
-                    const notificationMessage = `
+                  // 获取指令中的账户
+                  const poolAccounts = createPoolInstruction.accountKeyIndexes.map(index => accounts[index]);
+                  // 找到两个代币的 mint 地址
+                  let tokenA: PublicKey | null = null;
+                  let tokenB: PublicKey | null = null;
+                  
+                  // 遍历账户列表，查找代币 mint 地址
+                  for (let account of poolAccounts) {
+                      try {
+                          // 检查账户是否是代币 mint
+                          const accountInfo = await this.connection.getAccountInfo(account);
+                          if (accountInfo && 
+                              (accountInfo.owner.equals(TOKEN_PROGRAM_ID) || 
+                               accountInfo.owner.equals(TOKEN_2022_PROGRAM_ID))) {
+                              if (!tokenA) {
+                                  tokenA = account;
+                              } else if (!tokenB) {
+                                  tokenB = account;
+                                  break;
+                              }
+                          }
+                      } catch (error) {
+                          console.error('检查账户失败:', error);
+                      }
+                  }
+
+                  if (!tokenA || !tokenB) {
+                      console.log('未能找到代币地址');
+                      return;
+                  }
+                  if(!this.isIBoxToken(tokenA, tokenB)) {
+                      return
+                  }
+
+                  const mintPublicKey = tokenA.equals(NATIVE_MINT) ? tokenB : tokenA;
+                  console.log('=========New Token===========');
+                  console.log("Found IBOX token:", mintPublicKey.toBase58(), new Date().toISOString());
+                  console.log("Found quote token:", NATIVE_MINT.toBase58(), new Date().toISOString());
+                  // 发送 Telegram 通知
+                  const solAmount = Number(wsolAmount)/LAMPORTS_PER_SOL;
+                  const notificationMessage = `
 🚨 <b>新 IBOX Token 池子创建提醒！</b> 🚨
 
 💎 <b>Token 信息</b>
@@ -134,18 +171,17 @@ class RaydiumLiquidityMonitor {
 
 ⚡️ <b>风险提示</b>: 请谨慎交易DYOR!
 `;
-                    // 异步发送通知，不等待结果
-                    this.sendTelegramNotification(notificationMessage).catch(err => 
-                      console.error('发送 Telegram 通知失败:', err)
-                    );
-
-                    // 买入代币
-                    try {
-                      console.log('开始买入代币...', mintPublicKey.toBase58());
-                      const txId = await this.swap(mintPublicKey);
-                      if (txId) {
-                        console.log('买入成功，交易签名:', txId);
-                        const notificationMessage = `
+                  // 异步发送通知，不等待结果
+                  this.sendTelegramNotification(notificationMessage).catch(err => 
+                    console.error('发送 Telegram 通知失败:', err)
+                  );
+                  // 买入代币
+                  try {
+                    console.log('开始买入代币...', mintPublicKey.toBase58());
+                    const txId = await this.swap(mintPublicKey);
+                    if (txId) {
+                      console.log('买入成功，交易签名:', txId);
+                      const notificationMessage = `
 💰 <b>买入成功</b>
 ├ 查看买入交易: <a href="https://solscan.io/tx/${txId}">Solscan</a>
 `;
@@ -154,11 +190,11 @@ class RaydiumLiquidityMonitor {
                         console.error('发送 Telegram 通知失败:', err)
                       );
                     }
-                    } catch (error) {
+                  } catch (error) {
                         console.error('买入失败:', error);
-                    }
-                } catch (error) {
-                    console.error('获取Base Token信息失败:', error)
+                  }
+                }catch(e){
+                  console.log(e)
                 }
               }
             } catch (error) {
