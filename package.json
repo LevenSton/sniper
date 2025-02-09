@@ -13,6 +13,7 @@
     "bs58": "^6.0.0",
     "dotenv": "^16.4.5",
     "esrun": "^3.2.26",
+    "pm2": "^5.4.3",
     "inquirer": "^10.0.2"
   },
   "devDependencies": {
@@ -22,6 +23,9 @@
   },
   "scripts": {
     "build": "tsc",
+    "start": "pm2 start ecosystem.config.js",
+    "stop": "pm2 stop ecosystem.config.js",
+    "restart": "pm2 restart ecosystem.config.js",
     "auto": "node ./dist/autoSniper.js",
     "single": "node ./dist/singleSniper.js",
     "iBox": "node ./dist/sniperIBox.js"
