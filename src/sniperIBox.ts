@@ -64,7 +64,7 @@ class RaydiumLiquidityMonitor {
       this.telegramBot = new TelegramBot(botToken, { polling: false });
       console.log('Telegram bot initialized');
     } else {
-      console.warn('Telegram notification disabled: missing TG_BOT_TOKEN or TG_CHAT_ID');
+      throw new Error('Telegram notification disabled: missing TG_BOT_TOKEN or TG_CHAT_ID');
     }
   }
 
@@ -168,8 +168,6 @@ class RaydiumLiquidityMonitor {
 ├ 查看交易: <a href="https://solscan.io/tx/${logs.signature}">Solscan</a>
 ├ 查看代币: <a href="https://solscan.io/token/${mintPublicKey.toBase58()}">Token Info</a>
 └ 查看图表: <a href="https://dexscreener.com/solana/${mintPublicKey.toBase58()}">DexScreener</a>
-
-⚡️ <b>风险提示</b>: 请谨慎交易DYOR!
 `;
                   // 异步发送通知，不等待结果
                   this.sendTelegramNotification(notificationMessage).catch(err => 
