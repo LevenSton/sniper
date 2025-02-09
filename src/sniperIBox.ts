@@ -64,13 +64,24 @@ class RaydiumLiquidityMonitor {
         CREATE_CPMM_POOL_PROGRAM, 
         async (logs, context) => {
             try {
-              // 检查是否是创建池子的交易
-              if (!logs.logs.some(log => 
-                  //log.includes('Program log: Instruction: Initialize') || 
-                  log.includes('Program log: liquidity'))) {
-                  return
-              }
+              const liquidityLog = logs.logs.find(log => log.includes('Program log: liquidity'));
+              const burnLog = logs.logs.find(log => log.includes('Program log: Instruction: Burn'));
+              if (!liquidityLog || !burnLog)
+                  return null;
+              // 使用正则表达式提取数值
+              const vault0Match = liquidityLog.match(/vault_0_amount:(\d+)/);
+              const vault1Match = liquidityLog.match(/vault_1_amount:(\d+)/);
+              if (!vault0Match || !vault1Match) 
+                  return null;
+              const vault0Amount = BigInt(vault0Match[1]);
+              const vault1Amount = BigInt(vault1Match[1]);
+              const wsolAmount = vault0Amount < vault1Amount ? vault0Amount : vault1Amount;
               console.log('signature:', logs.signature);
+              console.log('vault0Amount: ', Number(vault0Amount)/LAMPORTS_PER_SOL);
+              console.log('vault1Amount: ', Number(vault1Amount)/LAMPORTS_PER_SOL);
+              if(wsolAmount < 50 * LAMPORTS_PER_SOL){
+                return null
+              }
               // 获取交易详情
               const tx = await this.connection.getTransaction(logs.signature, {
                   commitment: 'confirmed',
@@ -78,23 +89,29 @@ class RaydiumLiquidityMonitor {
               })
               if (tx) {
                 try {
-                    console.log('staticAccountKeys:', JSON.stringify(tx?.transaction.message.staticAccountKeys))
+                    // console.log('staticAccountKeys:', JSON.stringify(tx?.transaction.message.staticAccountKeys))
                     const len = tx?.transaction.message.staticAccountKeys.length
                     if(len < 6) {
                         return
                     }
                     const tokenA = new PublicKey(tx?.transaction.message.staticAccountKeys[len - 1].toBase58()!);
+
+                    console.log('=========New Token===========');
+                    //console.log('signature:', logs.signature);
                     console.log("Found base token:", tokenA.toBase58(), new Date().toISOString());
                     const tokenB = new PublicKey(tx?.transaction.message.staticAccountKeys[len - 5].toBase58()!);
                     console.log("Found quote token:", tokenB.toBase58(), new Date().toISOString());
                     if(!this.isIBoxToken(tokenA, tokenB)) {
                         return
                     }
+                    const mintPublicKey = tokenA.equals(NATIVE_MINT) ? tokenB : tokenA;
+
+                    console.log('发现IBOX token: ', mintPublicKey.toBase58())
 
                     // 买入代币
                     try {
-                      console.log('开始买入代币...', tokenA.toBase58());
-                      const txId = await this.swap(tokenA);
+                      console.log('开始买入代币...', mintPublicKey.toBase58());
+                      const txId = await this.swap(mintPublicKey);
                       console.log('买入成功，交易签名:', txId);
                     } catch (error) {
                         console.error('买入失败:', error);
@@ -254,8 +271,15 @@ class RaydiumLiquidityMonitor {
   }
 
   private isIBoxToken(tokenAMint: PublicKey, tokenBMint: PublicKey): boolean {
-    const mintAddress = tokenAMint.toBase58();
-    return mintAddress.toLowerCase().endsWith('ibox') && NATIVE_MINT.equals(tokenBMint);
+    if(NATIVE_MINT.equals(tokenAMint)){
+      const mintAddress = tokenBMint.toBase58();
+      return mintAddress.toLowerCase().endsWith('ibox')
+    }else if(NATIVE_MINT.equals(tokenBMint)){
+      const mintAddress = tokenAMint.toBase58();
+      return mintAddress.toLowerCase().endsWith('ibox')
+    }else{
+      return false
+    }
   }
 }
 
