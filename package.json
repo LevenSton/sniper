@@ -9,12 +9,14 @@
     "@solana/spl-token": "^0.4.12",
     "@solana/web3.js": "^1.98.0",
     "@types/bn.js": "^5.1.6",
+    "@types/node-telegram-bot-api": "^0.64.7",
     "bn.js": "^5.2.1",
     "bs58": "^6.0.0",
     "dotenv": "^16.4.5",
     "esrun": "^3.2.26",
-    "pm2": "^5.4.3",
-    "inquirer": "^10.0.2"
+    "inquirer": "^10.0.2",
+    "node-telegram-bot-api": "^0.66.0",
+    "pm2": "^5.4.3"
   },
   "devDependencies": {
     "@types/node": "^20.14.11",

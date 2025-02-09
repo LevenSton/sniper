@@ -7,6 +7,7 @@ import {
 import axios from 'axios';
 import bs58 from 'bs58';
 import dotenv from "dotenv";
+import TelegramBot from 'node-telegram-bot-api';
 import { NATIVE_MINT, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 dotenv.config();
 
@@ -38,6 +39,7 @@ interface SwapCompute {
 class RaydiumLiquidityMonitor {
   private connection: Connection;
   private keypair: Keypair | null = null;
+  private telegramBot: TelegramBot | null = null;
 
   constructor() {
     const privateKeyString = process.env.PRIVATE_KEY;
@@ -56,6 +58,14 @@ class RaydiumLiquidityMonitor {
       // confirmTransactionInitialTimeout: 60000,
       // disableRetryOnRateLimit: false,
     });
+    const botToken = process.env.TG_BOT_TOKEN;
+    const chatId = process.env.TG_CHAT_ID;
+    if (botToken && chatId) {
+      this.telegramBot = new TelegramBot(botToken, { polling: false });
+      console.log('Telegram bot initialized');
+    } else {
+      console.warn('Telegram notification disabled: missing TG_BOT_TOKEN or TG_CHAT_ID');
+    }
   }
 
   async startMonitoring() {
@@ -89,24 +99,42 @@ class RaydiumLiquidityMonitor {
               })
               if (tx) {
                 try {
-                    // console.log('staticAccountKeys:', JSON.stringify(tx?.transaction.message.staticAccountKeys))
                     const len = tx?.transaction.message.staticAccountKeys.length
                     if(len < 6) {
                         return
                     }
                     const tokenA = new PublicKey(tx?.transaction.message.staticAccountKeys[len - 1].toBase58()!);
-
-                    console.log('=========New Token===========');
-                    //console.log('signature:', logs.signature);
-                    console.log("Found base token:", tokenA.toBase58(), new Date().toISOString());
                     const tokenB = new PublicKey(tx?.transaction.message.staticAccountKeys[len - 5].toBase58()!);
+                    console.log('=========New Token===========');
+                    console.log("Found base token:", tokenA.toBase58(), new Date().toISOString());
                     console.log("Found quote token:", tokenB.toBase58(), new Date().toISOString());
                     if(!this.isIBoxToken(tokenA, tokenB)) {
                         return
                     }
-                    const mintPublicKey = tokenA.equals(NATIVE_MINT) ? tokenB : tokenA;
 
+                    const mintPublicKey = tokenA.equals(NATIVE_MINT) ? tokenB : tokenA;
                     console.log('发现IBOX token: ', mintPublicKey.toBase58())
+
+                    // 发送 Telegram 通知
+                    const solAmount = Number(wsolAmount)/LAMPORTS_PER_SOL;
+                    const notificationMessage = `
+🚨 <b>新 IBOX Token 池子创建提醒！</b> 🚨
+
+💎 <b>Token 信息</b>
+└ 地址: <code>${mintPublicKey.toBase58()}</code>
+
+💰 <b>流动性信息</b>
+├ SOL 数量: ${solAmount.toFixed(2)} SOL
+└ 时间: ${new Date().toLocaleString()}
+
+🔍 <b>快速操作</b>
+├ 查看交易: <a href="https://solscan.io/tx/${logs.signature}">Solscan</a>
+├ 查看代币: <a href="https://solscan.io/token/${mintPublicKey.toBase58()}">Token Info</a>
+└ 查看图表: <a href="https://dexscreener.com/solana/${mintPublicKey.toBase58()}">DexScreener</a>
+
+⚡️ <b>风险提示</b>: 请谨慎交易DYOR!
+`;
+                    await this.sendTelegramNotification(notificationMessage);
 
                     // 买入代币
                     try {
@@ -133,14 +161,24 @@ class RaydiumLiquidityMonitor {
     }
   }
 
+  private async sendTelegramNotification(message: string) {
+    try {
+      if (this.telegramBot && process.env.TG_CHAT_ID) {
+        await this.telegramBot.sendMessage(process.env.TG_CHAT_ID, message, { parse_mode: 'HTML' });
+      }
+    } catch (error) {
+      console.error('Failed to send Telegram notification:', error);
+    }
+  }
+
   private async swap(tokenA: PublicKey) : Promise<string | null> {
     if(!this.connection) throw new Error('Connection not initialized')
     if(!this.keypair) throw new Error('Keypair not initialized')
 
     const inputMint = NATIVE_MINT.toBase58()
     const outputMint = tokenA.toBase58()
-    const amount = BigInt(2 * LAMPORTS_PER_SOL);
-    const slippage = 50 // 50 % in percent, for this example, 0.5 means 0.5%
+    const amount = BigInt(Number(process.env.BUY_AMOUNT!) * LAMPORTS_PER_SOL);
+    const slippage = 70 // 50 % in percent, for this example, 0.5 means 0.5%
     const txVersion: string = 'V0' // or LEGACY
     const isV0Tx = txVersion === 'V0'
     console.log('start swap....')
