@@ -42,6 +42,8 @@ class RaydiumLiquidityMonitor {
   private telegramBot: TelegramBot | null = null;
 
   constructor() {
+    const amount = BigInt(Number(process.env.BUY_AMOUNT!) * LAMPORTS_PER_SOL);
+    console.log("buyAmount: ", amount)
     const privateKeyString = process.env.PRIVATE_KEY;
     if (!privateKeyString) {
       throw new Error('PRIVATE_KEY environment variable is not set');
