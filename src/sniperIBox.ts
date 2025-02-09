@@ -139,7 +139,7 @@ class RaydiumLiquidityMonitor {
 
     const inputMint = NATIVE_MINT.toBase58()
     const outputMint = tokenA.toBase58()
-    const amount = BigInt(0.1 * LAMPORTS_PER_SOL);
+    const amount = BigInt(2 * LAMPORTS_PER_SOL);
     const slippage = 50 // 50 % in percent, for this example, 0.5 means 0.5%
     const txVersion: string = 'V0' // or LEGACY
     const isV0Tx = txVersion === 'V0'
