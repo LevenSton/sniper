@@ -147,9 +147,6 @@ class RaydiumLiquidityMonitor {
                         console.log('买入成功，交易签名:', txId);
                         const notificationMessage = `
 💰 <b>买入成功</b>
-└ 时间: ${new Date().toLocaleString()}
-
-🔍 <b>信息</b>
 ├ 查看买入交易: <a href="https://solscan.io/tx/${txId}">Solscan</a>
 `;
                       // 异步发送通知，不等待结果
